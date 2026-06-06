@@ -33,14 +33,14 @@ if not check_password():
 
 # --- 1. CONFIGURATION DES ACTIFS ---
 assets = {
-    "États-Unis (S&P 500)": "IVV",
+    "États-Unis (S&P 500)": "SPY",
     "Europe (Stoxx 600)": "VGK",
     "Émergents (MSCI EM)": "EEM",
     "Monde (Socle Principal)": "ACWI"
 }
 
 fortuneo_etfs = {
-    "IVV": "ESE.PA", "VGK": "MEUD.PA", "EEM": "PAEEM.PA", "ACWI": "WPEA.PA"
+    "SPY": "ESE.PA", "VGK": "MEUD.PA", "EEM": "PAEEM.PA", "ACWI": "WPEA.PA"
 }
 
 @st.cache_data(ttl=3600)
