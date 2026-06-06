@@ -142,21 +142,31 @@ with col_stress: st.metric("🔥 MEILLEUR MOMENTUM (6M)", poche_momentum_assets[
 
 # --- 5. ASSISTANT D'ORDRE AUTOMATIQUE (SIDEBAR) ---
 st.sidebar.header("🧮 Ordre Fortuneo Automatique")
-apport_mois = st.sidebar.number_input("Versement ce mois-ci (€)", value=1000, step=100)
 
-total_futur = total_portefeuille + apport_mois
-cible_poche = total_futur * 0.50
-besoin_monde = max(0.0, cible_poche - valeur_monde)
-besoin_momentum = max(0.0, cible_poche - valeur_momentum)
+# Création d'un "Formulaire" (bloque le calcul tant qu'on ne clique pas sur le bouton)
+with st.sidebar.form(key="form_versement"):
+    apport_mois = st.number_input("Versement ce mois-ci (€)", value=1000, step=100)
+    bouton_valider = st.form_submit_button(label="✅ Valider le versement")
+
+# NOUVEAU CALCUL : On prend le versement validé + l'argent qui dort déjà sur le compte espèces
+cash_disponible = apport_mois + cash_pea
+
+# On divise cet argent en deux parts égales (50% / 50%)
+besoin_monde = cash_disponible * 0.50
+besoin_momentum = cash_disponible * 0.50
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("📝 Votre ordre au millimètre :")
-st.sidebar.info(f"**1. Pour le MSCI World (WPEA) :**\nVerser exactement **{besoin_monde:.2f} €** (Achetez environ {int(besoin_monde/prix_wpea)} parts)")
+
+# Sécurité pour éviter la division par zéro si le prix de l'ETF ne s'est pas chargé
+parts_wpea_a_acheter = int(besoin_monde / prix_wpea) if prix_wpea > 0 else 0
+
+st.sidebar.info(f"**1. Pour le MSCI World (WPEA) :**\nVerser **{besoin_monde:.2f} €** (Achetez environ {parts_wpea_a_acheter} parts)")
 
 if signal_final != "CASH / SÉCURITÉ COMPTE ESPÈCES":
-    st.sidebar.success(f"**2. Pour la Poche Momentum ({signal_final}) :**\nVerser exactement **{besoin_momentum:.2f} €** sur l'ETF associé chez Fortuneo.")
+    st.sidebar.success(f"**2. Pour la Poche Momentum ({signal_final}) :**\nVerser **{besoin_momentum:.2f} €** sur l'ETF associé chez Fortuneo.")
 else:
-    st.sidebar.error(f"**2. Alerte Risque :**\nLaissez l'argent sur votre compte espèces Fortuneo.")
+    st.sidebar.error(f"**2. Alerte Risque :**\nLaissez vos **{besoin_momentum:.2f} €** bien au chaud sur votre compte espèces Fortuneo.")
 
 # --- 6. GRAPHIQUE ---
 st.subheader("📈 Graphique de force relative et sa Moyenne Mobile (SMA 200)")
