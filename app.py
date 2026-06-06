@@ -31,22 +31,18 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- 1. CONFIGURATION DES ACTIFS ---
+# --- 1. CONFIGURATION DES ACTIFS (Correction S&P 500) ---
 assets = {
-    "États-Unis (S&P 500)": "SPY",
+    "États-Unis (S&P 500)": "VOO",  # Changement ici pour VOO (très stable)
     "Europe (Stoxx 600)": "VGK",
     "Émergents (MSCI EM)": "EEM",
     "Monde (Socle Principal)": "ACWI"
 }
 
-fortuneo_etfs = {
-    "SPY": "ESE.PA", "VGK": "MEUD.PA", "EEM": "PAEEM.PA", "ACWI": "WPEA.PA"
-}
-
 @st.cache_data(ttl=3600)
 def load_data():
     dict_data = {}
-    all_tickers = list(assets.values()) + list(fortuneo_etfs.values()) + ["^VIX"]
+    all_tickers = list(assets.values()) + ["^VIX"]
     for ticker in all_tickers:
         try:
             df_hist = yf.download(ticker, period="2y", progress=False, auto_adjust=True)
@@ -69,18 +65,14 @@ market_stress = "Crise / Alerte" if vix > 25 else "Opportunité / Calme" if vix 
 for name, ticker in assets.items():
     if ticker in data.columns and len(data[ticker]) >= 200:
         current = float(data[ticker].iloc[-1])
+        past_1m = float(data[ticker].iloc[-21])
+        past_3m = float(data[ticker].iloc[-63])
+        past_6m = float(data[ticker].iloc[-126])
         
-        # Prix passés pour les différentes périodes
-        past_1m = float(data[ticker].iloc[-21])   # ~1 mois (21 jours de bourse)
-        past_3m = float(data[ticker].iloc[-63])   # ~3 mois (63 jours de bourse)
-        past_6m = float(data[ticker].iloc[-126])  # ~6 mois (126 jours de bourse)
-        
-        # Calcul des scores
         score_1m = ((current / past_1m) - 1) * 100
         score_3m = ((current / past_3m) - 1) * 100
         score_6m = ((current / past_6m) - 1) * 100
         
-        # Moyenne mobile 200 jours
         sma200_series = data[ticker].rolling(200).mean()
         sma200 = float(sma200_series.iloc[-1]) if len(sma200_series) >= 200 else current
         trend_ok = current > sma200
@@ -103,61 +95,42 @@ for name, ticker in assets.items():
             "_ticker_ref": ticker
         }
 
-# Le vainqueur reste basé sur le signal historique des 6 mois pour éviter de sur-échanger
+# Le gagnant reste calculé sur 6 mois
 poche_momentum_assets = {k: v for k, v in moms.items() if k != "Monde (Socle Principal)"}
 winner = max(poche_momentum_assets, key=lambda x: poche_momentum_assets[x]["_score_6m_raw"])
 signal_final = winner
 if vix > 25:
     signal_final = "CASH / SÉCURITÉ COMPTE ESPÈCES"
 
-# --- 3. CHARGEMENT DU PORTEFEUILLE VIRTUEL ---
-parts_monde = float(st.secrets.get("PARTS_MONDE", 0.0))
-parts_momentum = float(st.secrets.get("PARTS_MOMENTUM", 0.0))
-cash_pea = float(st.secrets.get("CASH_PEA", 0.0))
-
-prix_wpea = float(data["WPEA.PA"].iloc[-1]) if "WPEA.PA" in data.columns else 5.0
-ticker_momentum_actuel = fortuneo_etfs[poche_momentum_assets[winner]["_ticker_ref"]]
-prix_momentum = float(data[ticker_momentum_actuel].iloc[-1]) if ticker_momentum_actuel in data.columns else 0.0
-
-valeur_monde = parts_monde * prix_wpea
-valeur_momentum = parts_momentum * prix_momentum
-total_portefeuille = valeur_monde + valeur_momentum + cash_pea
-
-# --- 4. INTERFACE PRINCIPALE ---
+# --- 3. INTERFACE PRINCIPALE ---
 st.title("🏛️ Terminal Quantitaire - Analyse Multi-Horizon")
-st.write(f"Synchronisation en direct : {datetime.now().strftime('%d/%m/%Y à %H:%M')}")
-st.markdown("---")
-
-col_tot, col_wpea, col_mom_poche, col_csh = st.columns(4)
-with col_tot: st.metric("💰 VALEUR GLOBALE PEA", f"{total_portefeuille:,.2f} €")
-with col_wpea: st.metric("🌍 MSCI World (WPEA)", f"{valeur_monde:,.2f} €", f"{parts_monde:.0f} parts")
-with col_mom_poche: st.metric("⚡ POCHE MOMENTUM", f"{valeur_momentum:,.2f} €", f"{parts_momentum:.0f} parts")
-with col_csh: st.metric("💶 COMPTE ESPÈCES", f"{cash_pea:,.2f} €")
-
+st.write(f"Mise à jour des marchés : {datetime.now().strftime('%d/%m/%Y à %H:%M')}")
 st.markdown("---")
 
 col_sig, col_vix, col_stress = st.columns(3)
-with col_sig: st.metric("🚨 ACTION STRATÉGIQUE DU MOIS", signal_final)
+with col_sig: st.metric("🚨 ACTION STRATÉGIQUE", signal_final)
 with col_vix: st.metric("📊 INDICE VIX", f"{vix:.2f}", delta=market_stress, delta_color="inverse")
 with col_stress: st.metric("🔥 MEILLEUR MOMENTUM (6M)", poche_momentum_assets[winner]["Momentum 6 Mois (Signal)"])
 
-# --- 5. ASSISTANT D'ORDRE AUTOMATIQUE (SIDEBAR) ---
+# --- 4. ASSISTANT D'ORDRE AUTOMATIQUE (Retour de la saisie manuelle) ---
 st.sidebar.header("🧮 Assistant d'Ordre Fortuneo")
+
+# Les cases sont de retour ici !
+capital_total = st.sidebar.number_input("Valeur totale actuelle du PEA (€)", value=10000, step=500)
 apport_mois = st.sidebar.number_input("Versement ce mois-ci (€)", value=1000, step=100)
-total_futur = total_portefeuille + apport_mois
+
+total_futur = capital_total + apport_mois
 cible_poche = total_futur * 0.50
-besoin_monde = max(0.0, cible_poche - valeur_monde)
-besoin_momentum = max(0.0, cible_poche - valeur_momentum)
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("📝 Votre ordre automatique :")
-st.sidebar.info(f"**1. Pour le MSCI World (WPEA) :**\nVerser **{besoin_monde:.2f} €** (~{int(besoin_monde/prix_wpea)} parts)")
+st.sidebar.subheader("📝 Votre cible d'allocation :")
+st.sidebar.info(f"**1. Poche Tranquillité (WPEA) :**\nVous devez avoir un total d'environ **{cible_poche:,.0f} €** sur cette ligne.")
 if signal_final != "CASH / SÉCURITÉ COMPTE ESPÈCES":
-    st.sidebar.success(f"**2. Pour la Poche Momentum ({signal_final}) :**\nVerser **{besoin_momentum:.2f} €**.")
+    st.sidebar.success(f"**2. Poche Momentum ({signal_final}) :**\nVous devez avoir un total d'environ **{cible_poche:,.0f} €** sur cette ligne.")
 else:
-    st.sidebar.error(f"**2. Alerte Risque :**\nLaissez l'argent sur votre compte espèces.")
+    st.sidebar.error(f"**2. Alerte Risque :**\nLaissez {cible_poche:,.0f} € sur votre compte espèces.")
 
-# --- 6. GRAPHIQUE ---
+# --- 5. GRAPHIQUE ---
 st.subheader("📈 Graphique de force relative et sa Moyenne Mobile (SMA 200)")
 fig = go.Figure()
 colors = {"États-Unis (S&P 500)": "#1f77b4", "Europe (Stoxx 600)": "#ff7f0e", "Émergents (MSCI EM)": "#9467bd", "Monde (Socle Principal)": "#7f7f7f"}
@@ -178,7 +151,8 @@ for name, ticker in assets.items():
 fig.update_layout(template="plotly_white", hovermode="x unified", height=380)
 st.plotly_chart(fig, use_container_width=True)
 
-# --- 7. TABLEAU REMANIÉ AVEC LES 3 PÉRIODES ---
+# --- 6. TABLEAU MULTI-HORIZONS ---
 st.subheader("📋 Matrice de Décision Multi-Horizons (1m, 3m, 6m)")
 df_display = pd.DataFrame(moms).T[["Prix Actuel", "Momentum 1 Mois", "Momentum 3 Mois", "Momentum 6 Mois (Signal)", "Au-dessus SMA 200", "Statut Système"]]
 st.table(df_display)
+
