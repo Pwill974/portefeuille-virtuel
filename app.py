@@ -5,30 +5,32 @@ import plotly.graph_objects as go
 import os
 from datetime import datetime
 
-# --- CONFIGURATION STYLE PRO ---
+# --- CONFIGURATION DE BASE ---
 st.set_page_config(page_title="Terminal Quantitaire", layout="wide")
-st.markdown("""
-    <style>
-    .stApp { background-color: #0b0e14; color: #ffffff; }
-    div { color: #ffffff !important; }
-    .stMetric { background-color: #161b22; border-radius: 12px; padding: 20px; border: 1px solid #30363d; }
-    h1, h2, h3 { color: #58a6ff !important; }
-    </style>
-    """, unsafe_allow_html=True)
 
-# --- PROTECTION MOT DE PASSE ---
+# --- PROTECTION MOT DE PASSE (Visible) ---
 def check_password():
-    if st.sidebar.text_input("Mot de passe", type="password") == st.secrets["PASSWORD"]:
+    # On affiche le champ de texte normalement pour qu'il soit visible
+    pwd = st.text_input("Veuillez entrer votre mot de passe pour accéder au terminal :", type="password")
+    if pwd == st.secrets["PASSWORD"]:
         return True
-    st.error("Mot de passe requis")
+    elif pwd != "":
+        st.error("Mot de passe incorrect")
     return False
 
 if not check_password():
     st.stop()
 
-# --- CONFIGURATION ---
+# --- SI MOT DE PASSE OK, ON AFFICHE LE RESTE ---
+st.title("📊 Terminal de Pilotage Patrimonial")
+st.success("Accès autorisé")
+
+# --- CONFIGURATION DES ACTIFS ---
 assets = {"Nasdaq 100": "QQQ", "S&P 500": "VOO", "Europe": "VGK", "Monde": "ACWI"}
 fortuneo_etfs = {"QQQ": "PUST.PA", "VOO": "ESE.PA", "VGK": "MEUD.PA", "ACWI": "WPEA.PA"}
+
+# (Le reste de votre code va ici, en dessous)
+
 
 @st.cache_data(ttl=3600)
 def get_data():
