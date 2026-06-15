@@ -33,6 +33,7 @@ if not check_password():
 
 # --- 1. CONFIGURATION DES ACTIFS ---
 assets = {
+    "Nasdaq 100": "QQQ",
     "États-Unis (S&P 500)": "VOO", # VOO est très stable sur Yahoo Finance
     "Europe (Stoxx 600)": "VGK",
     "Émergents (MSCI EM)": "EEM",
@@ -41,6 +42,7 @@ assets = {
 
 # Correspondance exacte avec les ETF PEA sur Fortuneo
 fortuneo_etfs = {
+    "QQQ": "PUST.PA",
     "VOO": "ESE.PA",   # S&P 500 (BNP)
     "VGK": "MEUD.PA",  # Stoxx 600 (Amundi)
     "EEM": "PAEEM.PA", # Émergents (Amundi)
