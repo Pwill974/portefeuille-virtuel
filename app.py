@@ -1,187 +1,154 @@
 import streamlit as st
-import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
-from datetime import datetime
 
-# --- CONFIGURATION STYLE PRO ---
-st.set_page_config(page_title="Terminal Quantitaire - Automatisé", layout="wide")
+# --- 1. CONFIGURATION DE LA PAGE ---
+st.set_page_config(page_title="Portfolio PEA", layout="centered", initial_sidebar_state="collapsed")
+
+# --- 2. STYLE CSS AVANCÉ ---
 st.markdown("""
     <style>
-    .main { background-color: #f8f9fa; }
-    .stMetric { background-color: #ffffff; border-radius: 8px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); border: 1px solid #e9ecef; }
-    div.stButton > button:first-child { background-color: #007bff; color: white; border-radius: 5px; }
+    .stApp { background-color: #0d1321; color: #ffffff; }
+    
+    /* Style des conteneurs/cartes d'actifs */
+    div[data-testid="stVerticalBlock"] > div[style*="flex-direction: column;"] {
+        background-color: #172033;
+        border-radius: 15px;
+        padding: 15px;
+        border: 1px solid #23304c;
+    }
+    
+    /* Onglets Streamlit */
+    .stTabs [data-baseweb="tab-list"] { gap: 24px; background-color: #0d1321; }
+    .stTabs [data-baseweb="tab"] { color: #8a96a8; font-weight: bold; }
+    .stTabs [aria-selected="true"] { color: #00d28f !important; border-bottom: 3px solid #00d28f; }
+    
+    /* Typographie et couleurs spécifiques */
+    h1, h2, h3 { color: #ffffff !important; }
+    .vert-crypto { color: #00d28f; font-weight: bold; }
+    .bleu-invest { color: #3b82f6; font-weight: bold; }
+    .orange-liq { color: #f59e0b; font-weight: bold; }
+    
+    /* Badges Catégories & Types */
+    .badge-type { background-color: #1e293b; font-size: 12px; padding: 2px 6px; border-radius: 4px; color: #ffffff; font-weight: bold; }
+    .badge-socle { background-color: #064e3b; color: #34d399; padding: 2px 8px; border-radius: 5px; font-size: 12px; font-weight: bold; }
+    .badge-momentum { background-color: #1e3a8a; color: #93c5fd; padding: 2px 8px; border-radius: 5px; font-size: 12px; font-weight: bold; }
+    .badge-satellite { background-color: #7c2d12; color: #fdba74; padding: 2px 8px; border-radius: 5px; font-size: 12px; font-weight: bold; }
+    .badge-secteur { background-color: #1e1b4b; color: #c7d2fe; padding: 2px 8px; border-radius: 5px; font-size: 12px; }
+    
+    .btn-ordre { background-color: #00d28f; color: #0d1321; border-radius: 8px; padding: 5px 15px; text-decoration: none; font-weight: bold;}
     </style>
     """, unsafe_allow_html=True)
 
-# --- FONCTION DE VÉRIFICATION DU MOT DE PASSE ---
-def check_password():
-    if "password_correct" not in st.session_state:
-        st.title("🔒 Accès Sécurisé")
-        password = st.text_input("Veuillez saisir le mot de passe administrateur :", type="password")
-        if st.button("Se connecter"):
-            if password == st.secrets.get("PASSWORD", ""):
-                st.session_state["password_correct"] = True
-                st.rerun()
-            else:
-                st.error("❌ Mot de passe incorrect.")
-        return False
-    return True
+# --- 3. TOUTES VOS DONNÉES (12 Actifs) ---
+capital_initial = 10000
+investi = 9437
+liquidites = 563
+plus_value = 0
 
-if not check_password():
-    st.stop()
+# Base de données des actifs
+actifs = [
+    # SOCLE ZEN
+    {"ticker": "EWLD", "nom": "Amundi PEA MSCI World", "isin": "FR001400U5Q4", "qte": 65, "valeur": 1983, "cours": 30.50, "cible": 20, "cat": "Socle ZEN", "type": "ETF", "secteur": "Monde", "mom": 57, "mom_text": "⚡ Moyen"},
+    {"ticker": "PE500", "nom": "Amundi PEA S&P 500", "isin": "FR0011871128", "qte": 35, "valeur": 1477, "cours": 42.20, "cible": 15, "cat": "Socle ZEN", "type": "ETF", "secteur": "USA", "mom": 62, "mom_text": "⚡ Moyen"},
+    {"ticker": "PUST", "nom": "Amundi PEA Nasdaq-100", "isin": "FR0011871110", "qte": 17, "valeur": 949, "cours": 55.80, "cible": 10, "cat": "Socle ZEN", "type": "ETF", "secteur": "Tech US", "mom": 70, "mom_text": "🔥 Fort"},
+    {"ticker": "PCEU", "nom": "Amundi PEA MSCI Europe", "isin": "FR0013412038", "qte": 4, "valeur": 474, "cours": 118.40, "cible": 5, "cat": "Socle ZEN", "type": "ETF", "secteur": "Europe", "mom": 55, "mom_text": "⚡ Moyen"},
+    
+    # MOMENTUM
+    {"ticker": "GUARD", "nom": "BNP Défense", "isin": "LU2082324318", "qte": 0, "valeur": 0, "cours": 105.20, "cible": 10, "cat": "Momentum", "type": "ETF", "secteur": "Défense", "mom": 85, "mom_text": "🔥 Fort"},
+    {"ticker": "SU", "nom": "Schneider Electric", "isin": "FR0000121972", "qte": 0, "valeur": 0, "cours": 228.50, "cible": 5, "cat": "Momentum", "type": "Action", "secteur": "Industrie", "mom": 68, "mom_text": "⚡ Moyen"},
+    {"ticker": "AI", "nom": "Air Liquide", "isin": "FR0000120073", "qte": 0, "valeur": 0, "cours": 188.40, "cible": 3, "cat": "Momentum", "type": "Action", "secteur": "Industrie", "mom": 60, "mom_text": "⚡ Moyen"},
+    {"ticker": "AM", "nom": "Dassault Aviation", "isin": "FR0014004L86", "qte": 0, "valeur": 0, "cours": 204.00, "cible": 5, "cat": "Momentum", "type": "Action", "secteur": "Défense", "mom": 72, "mom_text": "🔥 Fort"},
+    {"ticker": "HO", "nom": "Thales", "isin": "FR0000121329", "qte": 0, "valeur": 0, "cours": 158.20, "cible": 5, "cat": "Momentum", "type": "Action", "secteur": "Défense", "mom": 75, "mom_text": "🔥 Fort"},
+    {"ticker": "STM", "nom": "STMicroelectronics", "isin": "NL0000226223", "qte": 0, "valeur": 0, "cours": 39.50, "cible": 5, "cat": "Momentum", "type": "Action", "secteur": "Tech EU", "mom": 40, "mom_text": "❄️ Faible"},
 
-# --- 1. CONFIGURATION DES ACTIFS ---
-assets = {
-    "Nasdaq 100": "QQQ",
-    "États-Unis (S&P 500)": "VOO", # VOO est très stable sur Yahoo Finance
-    "Europe (Stoxx 600)": "VGK",
-    "Émergents (MSCI EM)": "EEM",
-    "Monde (Socle Principal)": "ACWI"
-}
+    # SATELLITE
+    {"ticker": "SAN", "nom": "Sanofi", "isin": "FR0000120578", "qte": 0, "valeur": 0, "cours": 92.00, "cible": 7, "cat": "Satellite", "type": "Action", "secteur": "Santé", "mom": 55, "mom_text": "⚡ Moyen"},
+    {"ticker": "PAEEM", "nom": "Amundi PEA Émergents", "isin": "FR0013412020", "qte": 0, "valeur": 0, "cours": 44.60, "cible": 5, "cat": "Satellite", "type": "ETF", "secteur": "Émergents", "mom": 61, "mom_text": "⚡ Moyen"}
+]
 
-# Correspondance exacte avec les ETF PEA sur Fortuneo
-fortuneo_etfs = {
-    "QQQ": "PUST.PA",
-    "VOO": "ESE.PA",   # S&P 500 (BNP)
-    "VGK": "MEUD.PA",  # Stoxx 600 (Amundi)
-    "EEM": "PAEEM.PA", # Émergents (Amundi)
-    "ACWI": "WPEA.PA"  # Monde (BlackRock)
-}
+# --- 4. HEADER ---
+col_logo, col_titre, col_btn = st.columns([1, 3, 2])
+with col_titre:
+    st.markdown("### Portfolio\n<span style='color: #8a96a8;'>PEA Fortuneo · Stratégie Alpha Zen</span>", unsafe_allow_html=True)
+with col_btn:
+    st.markdown("<br><button style='background-color: #00d28f; color: #0d1321; border: none; padding: 10px 20px; border-radius: 10px; font-weight: bold; width: 100%;'>⚡ Répartir le capital</button>", unsafe_allow_html=True)
 
-@st.cache_data(ttl=3600)
-def load_data():
-    dict_data = {}
-    all_tickers = list(assets.values()) + list(fortuneo_etfs.values()) + ["^VIX"]
-    for ticker in all_tickers:
-        try:
-            df_hist = yf.download(ticker, period="2y", progress=False, auto_adjust=True)
-            if not df_hist.empty:
-                if isinstance(df_hist.columns, pd.MultiIndex):
-                    dict_data[ticker] = df_hist['Close'][ticker]
-                else:
-                    dict_data[ticker] = df_hist['Close']
-        except Exception:
-            pass
-    return pd.DataFrame(dict_data).ffill()
+st.write("") 
 
-data = load_data()
+# --- 5. SYSTÈME D'ONGLETS ---
+tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "💼 Portefeuille", "📋 Transactions"])
 
-# --- 2. CALCULS STRATÉGIQUES MULTI-HORIZONS ---
-moms = {}
-vix = float(data["^VIX"].iloc[-1]) if "^VIX" in data.columns and not data["^VIX"].empty else 15.0
-market_stress = "Crise / Alerte" if vix > 25 else "Opportunité / Calme" if vix < 15 else "Normal"
+# ==========================================
+# ONGLET 1 : DASHBOARD
+# ==========================================
+with tab1:
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown(f"<div style='text-align: center; background-color: #172033; padding: 20px; border-radius: 10px;'>Poids Total<br><span class='vert-crypto' style='font-size: 24px;'>{capital_initial:,.0f} €</span><br><span style='font-size: 12px; color: #8a96a8;'>Capital: 10 000 €</span></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: center; background-color: #172033; padding: 20px; border-radius: 10px; margin-top: 15px;'>Plus-Value<br><span class='vert-crypto' style='font-size: 24px;'>+{plus_value} €</span><br><span style='font-size: 12px; color: #8a96a8;'>+0,00 %</span></div>", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"<div style='text-align: center; background-color: #172033; padding: 20px; border-radius: 10px;'>Investi<br><span class='bleu-invest' style='font-size: 24px;'>{investi:,.0f} €</span><br><span style='font-size: 12px; color: #8a96a8;'>12 lignes actives</span></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: center; background-color: #172033; padding: 20px; border-radius: 10px; margin-top: 15px;'>Liquidités<br><span class='orange-liq' style='font-size: 24px;'>{liquidites} €</span><br><span style='font-size: 12px; color: #8a96a8;'>5,6% du capital</span></div>", unsafe_allow_html=True)
 
-for name, ticker in assets.items():
-    if ticker in data.columns and len(data[ticker]) >= 200:
-        current = float(data[ticker].iloc[-1])
-        past_1m = float(data[ticker].iloc[-21])
-        past_3m = float(data[ticker].iloc[-63])
-        past_6m = float(data[ticker].iloc[-126])
-        
-        score_1m = ((current / past_1m) - 1) * 100
-        score_3m = ((current / past_3m) - 1) * 100
-        score_6m = ((current / past_6m) - 1) * 100
-        
-        sma200_series = data[ticker].rolling(200).mean()
-        sma200 = float(sma200_series.iloc[-1]) if len(sma200_series) >= 200 else current
-        trend_ok = current > sma200
-        
-        if score_6m > 0 and trend_ok:
-            status = "🟢 ACHAT"
-        elif score_6m > 0 or trend_ok:
-            status = "🟠 NEUTRE"
-        else:
-            status = "🔴 CASH"
-            
-        moms[name] = {
-            "Prix Actuel": f"{current:.2f}$",
-            "Momentum 1 Mois": f"{score_1m:.2f}%",
-            "Momentum 3 Mois": f"{score_3m:.2f}%",
-            "Momentum 6 Mois (Signal)": f"{score_6m:.2f}%",
-            "Au-dessus SMA 200": "Oui" if trend_ok else "Non",
-            "Statut Système": status,
-            "_score_6m_raw": score_6m,
-            "_ticker_ref": ticker
-        }
+    st.write("---")
+    st.markdown("#### Répartition stratégique")
+    fig = go.Figure(data=[go.Pie(labels=['Socle ZEN', 'Momentum', 'Satellite'], 
+                                 values=[50, 38, 12], 
+                                 hole=.6,
+                                 marker_colors=['#00d28f', '#3b82f6', '#f59e0b'],
+                                 textinfo='none')])
+    fig.update_layout(showlegend=True, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=0, b=0, l=0, r=0), font=dict(color='#ffffff'))
+    st.plotly_chart(fig, use_container_width=True)
 
-poche_momentum_assets = {k: v for k, v in moms.items() if k != "Monde (Socle Principal)"}
-winner = max(poche_momentum_assets, key=lambda x: poche_momentum_assets[x]["_score_6m_raw"])
-signal_final = winner
-if vix > 25:
-    signal_final = "CASH / SÉCURITÉ COMPTE ESPÈCES"
+# ==========================================
+# ONGLET 2 : PORTEFEUILLE (Trié par catégories)
+# ==========================================
+with tab2:
+    
+    def render_actifs(liste_actifs, badge_class):
+        for actif in liste_actifs:
+            with st.container():
+                col_gauche, col_droite = st.columns([3, 1])
+                with col_gauche:
+                    st.markdown(f"""
+                    <span style='font-size: 18px; font-weight: bold; color: #00d28f;'>{actif['ticker']}</span> 
+                    <span class='badge-type'>{actif['type']}</span>
+                    <span class='{badge_class}'>{actif['cat']}</span>
+                    <span class='badge-secteur'>{actif['secteur']}</span>
+                    <br><span style='color: #8a96a8; font-size: 13px;'>{actif['nom']}<br>{actif['isin']}</span>
+                    """, unsafe_allow_html=True)
+                    
+                    cA, cB = st.columns(2)
+                    cA.markdown(f"<span style='color: #8a96a8; font-size: 12px;'>QTÉ / VALEUR</span><br><span style='font-weight: bold; font-size: 18px;'>{actif['qte']}</span><br><span style='color: #8a96a8; font-size: 13px;'>{actif['valeur']} €</span>", unsafe_allow_html=True)
+                    cB.markdown(f"<span style='color: #8a96a8; font-size: 12px;'>+/- VALUE</span><br><span class='vert-crypto' style='font-size: 18px;'>-</span><br><span class='vert-crypto' style='font-size: 13px;'>0,0%</span>", unsafe_allow_html=True)
+                    
+                    st.progress(actif['mom'] / 100)
+                    st.markdown(f"<span style='color: #f59e0b; font-size: 12px; font-weight: bold;'>{actif['mom_text']}</span>", unsafe_allow_html=True)
+                    
+                with col_droite:
+                    st.markdown(f"<div style='text-align: right; color: #8a96a8; font-size: 12px;'>COURS<br><span style='color: white; font-size: 18px; font-weight: bold;'>{actif['cours']:.2f} €</span></div>", unsafe_allow_html=True)
+                    st.write("")
+                    st.markdown(f"<div style='text-align: right;'><span style='color: #8a96a8; font-size: 12px;'>CIBLE</span><br><span style='color: #00d28f; font-weight: bold; font-size: 16px;'>{actif['cible']}%</span><br><br><span class='btn-ordre'>💸 Ordre</span></div>", unsafe_allow_html=True)
+            st.write("---")
 
-# --- 3. SYNCHRONISATION DU PORTEFEUILLE VIRTUEL (VIA SECRETS) ---
-parts_monde = float(st.secrets.get("PARTS_MONDE", 0.0))
-parts_momentum = float(st.secrets.get("PARTS_MOMENTUM", 0.0))
-cash_pea = float(st.secrets.get("CASH_PEA", 0.0))
+    # --- SECTION A : SOCLE ZEN ---
+    st.markdown("### <span style='color: #00d28f;'>|</span> SOCLE ZEN", unsafe_allow_html=True)
+    socle_liste = [a for a in actifs if a['cat'] == "Socle ZEN"]
+    render_actifs(socle_liste, "badge-socle")
+    
+    # --- SECTION B : MOMENTUM ---
+    st.markdown("### <span style='color: #3b82f6;'>|</span> MOMENTUM", unsafe_allow_html=True)
+    momentum_liste = [a for a in actifs if a['cat'] == "Momentum"]
+    render_actifs(momentum_liste, "badge-momentum")
 
-prix_wpea = float(data["WPEA.PA"].iloc[-1]) if "WPEA.PA" in data.columns else 5.0
-ticker_momentum_actuel = fortuneo_etfs[poche_momentum_assets[winner]["_ticker_ref"]]
-prix_momentum = float(data[ticker_momentum_actuel].iloc[-1]) if ticker_momentum_actuel in data.columns else 0.0
+    # --- SECTION C : SATELLITE ---
+    st.markdown("### <span style='color: #f59e0b;'>|</span> SATELLITE", unsafe_allow_html=True)
+    satellite_liste = [a for a in actifs if a['cat'] == "Satellite"]
+    render_actifs(satellite_liste, "badge-satellite")
 
-valeur_monde = parts_monde * prix_wpea
-valeur_momentum = parts_momentum * prix_momentum
-total_portefeuille = valeur_monde + valeur_momentum + cash_pea
-
-# --- 4. INTERFACE PRINCIPALE ---
-st.title("🏛️ Terminal Quantitaire - Pilotage Automatique")
-st.write(f"Mise à jour et synchronisation : {datetime.now().strftime('%d/%m/%Y à %H:%M')}")
-st.markdown("---")
-
-col_tot, col_wpea, col_mom_poche, col_csh = st.columns(4)
-with col_tot: st.metric("💰 VALEUR GLOBALE PEA", f"{total_portefeuille:,.2f} €")
-with col_wpea: st.metric("🌍 MSCI World (WPEA)", f"{valeur_monde:,.2f} €", f"{parts_monde:.0f} parts")
-with col_mom_poche: st.metric("⚡ POCHE MOMENTUM", f"{valeur_momentum:,.2f} €", f"{parts_momentum:.0f} parts")
-with col_csh: st.metric("💶 COMPTE ESPÈCES", f"{cash_pea:,.2f} €")
-
-st.markdown("---")
-
-col_sig, col_vix, col_stress = st.columns(3)
-with col_sig: st.metric("🚨 ACTION STRATÉGIQUE", signal_final)
-with col_vix: st.metric("📊 INDICE VIX", f"{vix:.2f}", delta=market_stress, delta_color="inverse")
-with col_stress: st.metric("🔥 MEILLEUR MOMENTUM (6M)", poche_momentum_assets[winner]["Momentum 6 Mois (Signal)"])
-
-# --- 5. ASSISTANT D'ORDRE AUTOMATIQUE (SIDEBAR) ---
-st.sidebar.header("🧮 Ordre Fortuneo Automatique")
-apport_mois = st.sidebar.number_input("Versement ce mois-ci (€)", value=1000, step=100)
-
-total_futur = total_portefeuille + apport_mois
-cible_poche = total_futur * 0.50
-besoin_monde = max(0.0, cible_poche - valeur_monde)
-besoin_momentum = max(0.0, cible_poche - valeur_momentum)
-
-st.sidebar.markdown("---")
-st.sidebar.subheader("📝 Votre ordre au millimètre :")
-st.sidebar.info(f"**1. Pour le MSCI World (WPEA) :**\nVerser exactement **{besoin_monde:.2f} €** (Achetez environ {int(besoin_monde/prix_wpea)} parts)")
-
-if signal_final != "CASH / SÉCURITÉ COMPTE ESPÈCES":
-    st.sidebar.success(f"**2. Pour la Poche Momentum ({signal_final}) :**\nVerser exactement **{besoin_momentum:.2f} €** sur l'ETF associé chez Fortuneo.")
-else:
-    st.sidebar.error(f"**2. Alerte Risque :**\nLaissez l'argent sur votre compte espèces Fortuneo.")
-
-# --- 6. GRAPHIQUE ---
-st.subheader("📈 Graphique de force relative et sa Moyenne Mobile (SMA 200)")
-fig = go.Figure()
-colors = {"États-Unis (S&P 500)": "#1f77b4", "Europe (Stoxx 600)": "#ff7f0e", "Émergents (MSCI EM)": "#9467bd", "Monde (Socle Principal)": "#7f7f7f"}
-
-for name, ticker in assets.items():
-    if ticker in data.columns and len(data[ticker]) >= 200:
-        prices_6m = data[ticker].tail(126)
-        base_price = data[ticker].iloc[-126]
-        norm_prices = (prices_6m / base_price) * 100
-        sma200_raw = data[ticker].rolling(200).mean()
-        norm_sma200 = (sma200_raw.tail(126) / base_price) * 100
-        is_winner = (name == winner)
-        color = "#28a745" if is_winner else colors[name]
-        
-        fig.add_trace(go.Scatter(x=norm_prices.index, y=norm_prices, name=name, line=dict(width=3.5 if is_winner else 1.5, color=color)))
-        fig.add_trace(go.Scatter(x=norm_sma200.index, y=norm_sma200, name=f"SMA 200 - {name}", line=dict(width=1, color=color, dash="dot"), showlegend=False))
-
-fig.update_layout(template="plotly_white", hovermode="x unified", height=400)
-st.plotly_chart(fig, use_container_width=True)
-
-# --- 7. TABLEAU MULTI-HORIZONS ---
-st.subheader("📋 Matrice de Décision Multi-Horizons (1m, 3m, 6m)")
-df_display = pd.DataFrame(moms).T[["Prix Actuel", "Momentum 1 Mois", "Momentum 3 Mois", "Momentum 6 Mois (Signal)", "Au-dessus SMA 200", "Statut Système"]]
-st.table(df_display)
+# ==========================================
+# ONGLET 3 : TRANSACTIONS
+# ==========================================
+with tab3:
+    st.info("Historique des transactions à venir...")
