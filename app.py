@@ -5,7 +5,38 @@ import plotly.graph_objects as go
 # --- 1. CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Portfolio PEA", layout="centered", initial_sidebar_state="collapsed")
 
-# --- 2. STYLE CSS AVANCÉ ---
+# --- 2. PROTECTION PAR MOT DE PASSE ---
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+# Écran de connexion si l'utilisateur n'est pas authentifié
+if not st.session_state.authenticated:
+    st.markdown("""
+        <style>
+        .stApp { background-color: #0d1321; color: #ffffff; }
+        .login-box { background-color: #172033; padding: 30px; border-radius: 15px; border: 1px solid #23304c; margin-top: 50px; }
+        h2 { color: #ffffff !important; text-align: center; }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("<div class='login-box'>", unsafe_allow_html=True)
+    st.markdown("<h2>🏛️ Terminal Alpha Zen</h2>", unsafe_allow_html=True)
+    st.write("<br>", unsafe_allow_html=True)
+    
+    password_input = st.text_input("Veuillez entrer votre mot de passe :", type="password")
+    
+    if st.button("⚡ Déverrouiller le Cockpit", use_container_width=True):
+        # Vérification par rapport à vos Secrets Streamlit
+        if password_input == st.secrets.get("PASSWORD"):
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("Mot de passe incorrect. Accès refusé.")
+            
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.stop()  # Arrête l'exécution du reste du code tant qu'on n'est pas connecté
+
+# --- 3. STYLE CSS AVANCÉ DE L'APPLICATION ---
 st.markdown("""
     <style>
     .stApp { background-color: #0d1321; color: #ffffff; }
@@ -40,13 +71,12 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. TOUTES VOS DONNÉES (12 Actifs) ---
+# --- 4. TOUTES VOS DONNÉES (12 Actifs) ---
 capital_initial = 10000
 investi = 9437
 liquidites = 563
 plus_value = 0
 
-# Base de données des actifs
 actifs = [
     # SOCLE ZEN
     {"ticker": "EWLD", "nom": "Amundi PEA MSCI World", "isin": "FR001400U5Q4", "qte": 65, "valeur": 1983, "cours": 30.50, "cible": 20, "cat": "Socle ZEN", "type": "ETF", "secteur": "Monde", "mom": 57, "mom_text": "⚡ Moyen"},
@@ -67,7 +97,7 @@ actifs = [
     {"ticker": "PAEEM", "nom": "Amundi PEA Émergents", "isin": "FR0013412020", "qte": 0, "valeur": 0, "cours": 44.60, "cible": 5, "cat": "Satellite", "type": "ETF", "secteur": "Émergents", "mom": 61, "mom_text": "⚡ Moyen"}
 ]
 
-# --- 4. HEADER ---
+# --- 5. HEADER PRINCIPAL ---
 col_logo, col_titre, col_btn = st.columns([1, 3, 2])
 with col_titre:
     st.markdown("### Portfolio\n<span style='color: #8a96a8;'>PEA Fortuneo · Stratégie Alpha Zen</span>", unsafe_allow_html=True)
@@ -76,7 +106,7 @@ with col_btn:
 
 st.write("") 
 
-# --- 5. SYSTÈME D'ONGLETS ---
+# --- 6. SYSTÈME D'ONGLETS ---
 tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "💼 Portefeuille", "📋 Transactions"])
 
 # ==========================================
@@ -102,10 +132,9 @@ with tab1:
     st.plotly_chart(fig, use_container_width=True)
 
 # ==========================================
-# ONGLET 2 : PORTEFEUILLE (Trié par catégories)
+# ONGLET 2 : PORTEFEUILLE
 # ==========================================
 with tab2:
-    
     def render_actifs(liste_actifs, badge_class):
         for actif in liste_actifs:
             with st.container():
@@ -132,20 +161,14 @@ with tab2:
                     st.markdown(f"<div style='text-align: right;'><span style='color: #8a96a8; font-size: 12px;'>CIBLE</span><br><span style='color: #00d28f; font-weight: bold; font-size: 16px;'>{actif['cible']}%</span><br><br><span class='btn-ordre'>💸 Ordre</span></div>", unsafe_allow_html=True)
             st.write("---")
 
-    # --- SECTION A : SOCLE ZEN ---
     st.markdown("### <span style='color: #00d28f;'>|</span> SOCLE ZEN", unsafe_allow_html=True)
-    socle_liste = [a for a in actifs if a['cat'] == "Socle ZEN"]
-    render_actifs(socle_liste, "badge-socle")
+    render_actifs([a for a in actifs if a['cat'] == "Socle ZEN"], "badge-socle")
     
-    # --- SECTION B : MOMENTUM ---
     st.markdown("### <span style='color: #3b82f6;'>|</span> MOMENTUM", unsafe_allow_html=True)
-    momentum_liste = [a for a in actifs if a['cat'] == "Momentum"]
-    render_actifs(momentum_liste, "badge-momentum")
+    render_actifs([a for a in actifs if a['cat'] == "Momentum"], "badge-momentum")
 
-    # --- SECTION C : SATELLITE ---
     st.markdown("### <span style='color: #f59e0b;'>|</span> SATELLITE", unsafe_allow_html=True)
-    satellite_liste = [a for a in actifs if a['cat'] == "Satellite"]
-    render_actifs(satellite_liste, "badge-satellite")
+    render_actifs([a for a in actifs if a['cat'] == "Satellite"], "badge-satellite")
 
 # ==========================================
 # ONGLET 3 : TRANSACTIONS
